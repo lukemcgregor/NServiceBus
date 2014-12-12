@@ -1,25 +1,28 @@
 namespace NServiceBus.Unicast.Tests.Helpers
 {
     using System;
+    using NServiceBus.Faults;
+    using NServiceBus.Settings;
+    using NServiceBus.Transports;
     using Transport;
+    using TransactionSettings = NServiceBus.Unicast.Transport.TransactionSettings;
 
-    public class FakeTransport : ITransport
+    public class FakeTransport : TransportReceiver
     {
-        public void Dispose()
-        {
-           
-        }
-        
-        public void Start(Address localAddress)
+        public FakeTransport(TransactionSettings transactionSettings, int maximumConcurrencyLevel, int maximumThroughput, IDequeueMessages receiver, IManageMessageFailures manageMessageFailures, ReadOnlySettings settings, Configure config) : base(transactionSettings, maximumConcurrencyLevel, receiver, manageMessageFailures, settings, config, null)
         {
         }
 
-        public int MaximumConcurrencyLevel
+        public override void Start(Address localAddress)
+        {
+        }
+
+        public override int MaximumConcurrencyLevel
         {
             get { return 1; }
         }
 
-        public void ChangeMaximumConcurrencyLevel(int maximumConcurrencyLevel)
+        public override void ChangeMaximumConcurrencyLevel(int maximumConcurrencyLevel)
         {
             
         }
@@ -29,7 +32,7 @@ namespace NServiceBus.Unicast.Tests.Helpers
            
         }
 
-        public void Stop()
+        public override void Stop()
         {
         }
 
@@ -38,31 +41,13 @@ namespace NServiceBus.Unicast.Tests.Helpers
             throw new NotImplementedException();
         }
 
-        public event EventHandler<TransportMessageReceivedEventArgs> TransportMessageReceived;
-        public event EventHandler<StartedMessageProcessingEventArgs> StartedMessageProcessing;
-        public event EventHandler<FinishedMessageProcessingEventArgs> FinishedMessageProcessing;
-
-        public event EventHandler<FailedMessageProcessingEventArgs> FailedMessageProcessing;
-
+        
         public void FakeMessageBeingProcessed(TransportMessage transportMessage)
         {
-            StartedMessageProcessing(this, new StartedMessageProcessingEventArgs(transportMessage));
-            TransportMessageReceived(this,new TransportMessageReceivedEventArgs(transportMessage));
-            FinishedMessageProcessing(this, new FinishedMessageProcessingEventArgs(transportMessage));
         }
 
         public void FakeMessageBeingPassedToTheFaultManager(TransportMessage transportMessage)
         {
-            try
-            {
-                StartedMessageProcessing(this, new StartedMessageProcessingEventArgs(transportMessage));
-            }
-            catch(Exception ex)
-            {
-                if (FailedMessageProcessing != null)
-                    FailedMessageProcessing(this, new FailedMessageProcessingEventArgs(transportMessage, ex));
-            }
-            FinishedMessageProcessing(this, new FinishedMessageProcessingEventArgs(transportMessage));
         }
         public int MaximumMessageThroughputPerSecond { get; private set; }
     }

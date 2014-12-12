@@ -37,7 +37,7 @@ namespace NServiceBus.Unicast.Tests.Contexts
 
         protected MessageMapper MessageMapper = new MessageMapper();
 
-        protected FakeTransport Transport;
+        //protected FakeTransport Transport;
         protected XmlMessageSerializer MessageSerializer;
         protected FuncBuilder FuncBuilder;
         public static Address MasterNodeAddress;
@@ -76,7 +76,7 @@ namespace NServiceBus.Unicast.Tests.Contexts
 
             ApplyPipelineModifications();
 
-            Transport = new FakeTransport();
+            //Transport = new FakeTransport();
             FuncBuilder = new FuncBuilder();
 
             FuncBuilder.Register<ReadOnlySettings>(() => settings);
@@ -145,7 +145,7 @@ namespace NServiceBus.Unicast.Tests.Contexts
             {
                 Builder = FuncBuilder,
                 MessageSender = messageSender,
-                Transport = Transport,
+                // = Transport,
                 MessageMapper = MessageMapper,
                 SubscriptionManager = subscriptionManager,
                 MessageRouter = router,
@@ -285,7 +285,7 @@ namespace NServiceBus.Unicast.Tests.Contexts
 
                 bus.SetHeaderAction = (o, s, v) => { transportMessage.Headers[s] = v; };
 
-                Transport.FakeMessageBeingProcessed(transportMessage);
+                //Transport.FakeMessageBeingProcessed(transportMessage);
             }
             catch (Exception ex)
             {
@@ -314,7 +314,7 @@ namespace NServiceBus.Unicast.Tests.Contexts
         {
             try
             {
-                Transport.FakeMessageBeingPassedToTheFaultManager(transportMessage);
+                //Transport.FakeMessageBeingPassedToTheFaultManager(transportMessage);
             }
             catch (Exception ex)
             {

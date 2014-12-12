@@ -3,6 +3,8 @@
     using System.Collections.Generic;
     using Contexts;
     using Logging;
+    using NServiceBus.Unicast.Behaviors;
+    using NServiceBus.Unicast.Transport;
 
     class PipelineBuilder
     {
@@ -48,6 +50,9 @@
 
         void RegisterIncomingCoreBehaviors()
         {
+            coordinator.Register("HandlerTransactionScopeWrapperBehavior", typeof(HandlerTransactionScopeWrapperBehavior), "Add ProcessingStarted and ProcessingEnded headers");
+            coordinator.Register("FirstLevelRetriesBehavior", typeof(FirstLevelRetriesBehavior), "Add ProcessingStarted and ProcessingEnded headers");
+            coordinator.Register("ReceivePerformanceDiagnosticsBehavior", typeof(ReceivePerformanceDiagnosticsBehavior), "Add ProcessingStarted and ProcessingEnded headers");
             coordinator.Register(WellKnownStep.ProcessingStatistics, typeof(ProcessingStatisticsBehavior), "Add ProcessingStarted and ProcessingEnded headers");
             coordinator.Register(WellKnownStep.CreateChildContainer, typeof(ChildContainerBehavior), "Creates the child container");
             coordinator.Register(WellKnownStep.ExecuteUnitOfWork, typeof(UnitOfWorkBehavior), "Executes the UoW");

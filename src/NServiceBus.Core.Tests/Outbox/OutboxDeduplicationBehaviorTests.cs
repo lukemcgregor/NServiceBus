@@ -18,7 +18,8 @@
 
             fakeOutbox.ExistingMessage = new OutboxMessage(incomingTransportMessage.Id);
 
-            var context = new IncomingContext(null, incomingTransportMessage);
+            var context = new IncomingContext(null);
+            context.Set(IncomingContext.IncomingPhysicalMessageKey, incomingTransportMessage);
 
             Invoke(context);
 
@@ -30,11 +31,11 @@
         {
             var incomingTransportMessage = new TransportMessage();
 
-
-            var context = new IncomingContext(null, incomingTransportMessage)
+            var context = new IncomingContext(null)
             {
                 handleCurrentMessageLaterWasCalled = true
             };
+            context.Set(IncomingContext.IncomingPhysicalMessageKey, incomingTransportMessage);
 
             Invoke(context);
 

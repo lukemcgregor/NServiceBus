@@ -10,7 +10,7 @@ namespace NServiceBus.Satellites.Config
             Transport = null;                        
         }
 
-        public TransportReceiver Transport { get; set; }
+        public SatelliteTransportReceiver Transport { get; set; }
         public ISatellite Instance { get; set; }
     }
 }

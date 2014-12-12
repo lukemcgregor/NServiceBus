@@ -2,6 +2,7 @@ namespace NServiceBus
 {
     using NServiceBus.Configuration.AdvanceExtensibility;
     using NServiceBus.Features;
+    using NServiceBus.Transports.Msmq;
     using Transports;
 
     /// <summary>
@@ -33,6 +34,8 @@ namespace NServiceBus
 
             config.Settings.EnableFeatureByDefault<StorageDrivenPublishing>();
             config.Settings.EnableFeatureByDefault<TimeoutManager>();
+
+            config.Pipeline.Register<MsmqReceiveWithTransactionScopeBehavior.MsmqReceiveWithTransactionScopeBehaviorRegistration>();
         }
     }
 }

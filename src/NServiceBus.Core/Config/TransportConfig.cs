@@ -9,7 +9,7 @@
     public class TransportConfig : ConfigurationSection
     {
         /// <summary>
-        /// Specifies the maximum concurrency level this <see cref="ITransport"/> is able to support.
+        /// Specifies the maximum concurrency level this <see cref="TransportReceiver"/> is able to support.
         /// </summary>
         [ConfigurationProperty("MaximumConcurrencyLevel", IsRequired = false, DefaultValue = 1)]
         public int MaximumConcurrencyLevel

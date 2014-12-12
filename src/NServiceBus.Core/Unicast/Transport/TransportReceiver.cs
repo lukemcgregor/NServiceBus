@@ -1,37 +1,35 @@
 namespace NServiceBus.Unicast.Transport
 {
     using System;
-    using System.Diagnostics;
-    using System.Runtime.Serialization;
-    using System.Transactions;
     using Faults;
     using Logging;
     using Monitoring;
+    using NServiceBus.Pipeline;
     using Settings;
     using Transports;
 
     /// <summary>
-    ///     The default implementation of <see cref="ITransport" />
+    ///     Default implementation of a NServiceBus transport.
     /// </summary>
-    public class TransportReceiver : ITransport, IDisposable
+    public abstract class TransportReceiver : IDisposable, IObserver<MessageDequeued>
     {
         /// <summary>
         /// Creates an instance of <see cref="TransportReceiver"/>
         /// </summary>
         /// <param name="transactionSettings">The transaction settings to use for this <see cref="TransportReceiver"/>.</param>
         /// <param name="maximumConcurrencyLevel">The maximum number of messages to process in parallel.</param>
-        /// <param name="maximumThroughput">The maximum throughput per second, 0 means unlimited.</param>
         /// <param name="receiver">The <see cref="IDequeueMessages"/> instance to use.</param>
         /// <param name="manageMessageFailures">The <see cref="IManageMessageFailures"/> instance to use.</param>
         /// <param name="settings">The current settings</param>
         /// <param name="config">Configure instance</param>
-        public TransportReceiver(TransactionSettings transactionSettings, int maximumConcurrencyLevel, int maximumThroughput, IDequeueMessages receiver, IManageMessageFailures manageMessageFailures, ReadOnlySettings settings, Configure config)
+        /// <param name="pipelineExecutor"></param>
+        protected TransportReceiver(TransactionSettings transactionSettings, int maximumConcurrencyLevel, IDequeueMessages receiver, IManageMessageFailures manageMessageFailures, ReadOnlySettings settings, Configure config, PipelineExecutor pipelineExecutor)
         {
             this.settings = settings;
             this.config = config;
+            this.pipelineExecutor = pipelineExecutor;
             TransactionSettings = transactionSettings;
             MaximumConcurrencyLevel = maximumConcurrencyLevel;
-            MaximumMessageThroughputPerSecond = maximumThroughput;
             FailureManager = manageMessageFailures;
             Receiver = receiver;
         }
@@ -52,36 +50,21 @@ namespace NServiceBus.Unicast.Transport
         /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
         /// <filterpriority>2</filterpriority>
-        public void Dispose()
+        void IDisposable.Dispose()
         {
             //Injected at compile time
         }
 
         /// <summary>
-        ///     Event which indicates that message processing has started.
-        /// </summary>
-        public event EventHandler<StartedMessageProcessingEventArgs> StartedMessageProcessing;
-
-        /// <summary>
-        ///     Event which indicates that message processing has completed.
-        /// </summary>
-        public event EventHandler<FinishedMessageProcessingEventArgs> FinishedMessageProcessing;
-
-        /// <summary>
-        ///     Event which indicates that message processing failed for some reason.
-        /// </summary>
-        public event EventHandler<FailedMessageProcessingEventArgs> FailedMessageProcessing;
-
-        /// <summary>
-        ///     Gets the maximum concurrency level this <see cref="ITransport" /> is able to support.
+        ///     Gets the maximum concurrency level this <see cref="TransportReceiver" /> is able to support.
         /// </summary>
         public virtual int MaximumConcurrencyLevel { get; private set; }
 
         /// <summary>
-        ///     Updates the maximum concurrency level this <see cref="ITransport" /> is able to support.
+        ///     Updates the maximum concurrency level this <see cref="TransportReceiver" /> is able to support.
         /// </summary>
-        /// <param name="maximumConcurrencyLevel">The new maximum concurrency level for this <see cref="ITransport" />.</param>
-        public void ChangeMaximumConcurrencyLevel(int maximumConcurrencyLevel)
+        /// <param name="maximumConcurrencyLevel">The new maximum concurrency level for this <see cref="TransportReceiver" />.</param>
+        public virtual void ChangeMaximumConcurrencyLevel(int maximumConcurrencyLevel)
         {
             if (MaximumConcurrencyLevel == maximumConcurrencyLevel)
             {
@@ -99,52 +82,12 @@ namespace NServiceBus.Unicast.Transport
             }
         }
 
-        /// <summary>
-        ///     Gets the receiving messages rate.
-        /// </summary>
-        public int MaximumMessageThroughputPerSecond { get; private set; }
-
-        /// <summary>
-        /// Updates the MaximumMessageThroughputPerSecond setting.
-        /// </summary>
-        /// <param name="maximumMessageThroughputPerSecond">The new value.</param>
-        public void ChangeMaximumMessageThroughputPerSecond(int maximumMessageThroughputPerSecond)
-        {
-            if (maximumMessageThroughputPerSecond == MaximumMessageThroughputPerSecond)
-            {
-                return;
-            }
-
-            lock (changeMaximumMessageThroughputPerSecondLock)
-            {
-                MaximumMessageThroughputPerSecond = maximumMessageThroughputPerSecond;
-                if (throughputLimiter != null)
-                {
-                    throughputLimiter.Stop();
-                    throughputLimiter.Start(maximumMessageThroughputPerSecond);
-                }
-            }
-            if (maximumMessageThroughputPerSecond <= 0)
-            {
-                Logger.InfoFormat("Throughput limit for {0} disabled.", receiveAddress);
-            }
-            else
-            {
-                Logger.InfoFormat("Throughput limit for {0} changed to {1} msg/sec", receiveAddress,
-                    maximumMessageThroughputPerSecond);
-            }
-        }
-
-        /// <summary>
-        ///     Event raised when a message has been received in the input queue.
-        /// </summary>
-        public event EventHandler<TransportMessageReceivedEventArgs> TransportMessageReceived;
-
+        
 
         /// <summary>
         /// Starts the transport listening for messages on the given local address.
         /// </summary>
-        public void Start(Address address)
+        public virtual void Start(Address address)
         {
             if (isStarted)
             {
@@ -172,33 +115,15 @@ namespace NServiceBus.Unicast.Transport
 
             InitializePerformanceCounters();
 
-            throughputLimiter = new ThroughputLimiter();
-
-            throughputLimiter.Start(MaximumMessageThroughputPerSecond);
-
             StartReceiver();
-
-            if (MaximumMessageThroughputPerSecond > 0)
-            {
-                Logger.InfoFormat("Transport: {0} started with its throughput limited to {1} msg/sec", receiveAddress,
-                    MaximumMessageThroughputPerSecond);
-            }
 
             isStarted = true;
         }
 
         /// <summary>
-        ///     Causes the processing of the current message to be aborted.
-        /// </summary>
-        public void AbortHandlingCurrentMessage()
-        {
-            needToAbort = true;
-        }
-
-        /// <summary>
         ///     Stops the transport.
         /// </summary>
-        public void Stop()
+        public virtual void Stop()
         {
             InnerStop();
         }
@@ -212,170 +137,15 @@ namespace NServiceBus.Unicast.Transport
 
         void StartReceiver()
         {
-            Receiver.Init(receiveAddress, TransactionSettings, TryProcess, EndProcess);
+            Receiver.Init(receiveAddress, TransactionSettings);
+            Receiver.Subscribe(this);
             Receiver.Start(MaximumConcurrencyLevel);
         }
 
-        [DebuggerNonUserCode]
-        bool TryProcess(TransportMessage message)
-        {
-            currentReceivePerformanceDiagnostics.MessageDequeued();
-
-            needToAbort = false;
-
-            using (var tx = GetTransactionScope())
-            {
-                ProcessMessage(message);
-
-                tx.Complete();
-            }
-
-            return !needToAbort;
-        }
-
-        TransactionScope GetTransactionScope()
-        {
-            if (TransactionSettings.DoNotWrapHandlersExecutionInATransactionScope)
-            {
-                return new TransactionScope(TransactionScopeOption.Suppress);
-            }
-
-            return new TransactionScope(TransactionScopeOption.Required, new TransactionOptions
-            {
-                IsolationLevel = TransactionSettings.IsolationLevel,
-                Timeout = TransactionSettings.TransactionTimeout
-            });
-        }
-
-
-        void EndProcess(TransportMessage message, Exception ex)
-        {
-            var messageId = message != null ? message.Id : null;
-
-            if (needToAbort)
-            {
-                return;
-            }
-
-            throughputLimiter.MessageProcessed();
-
-            if (ex == null)
-            {
-                if (messageId != null)
-                {
-                    firstLevelRetries.ClearFailuresForMessage(message);
-                }
-
-                currentReceivePerformanceDiagnostics.MessageProcessed();
-
-                return;
-            }
-
-            currentReceivePerformanceDiagnostics.MessageFailed();
-
-            if (TransactionSettings.IsTransactional && messageId != null)
-            {
-                firstLevelRetries.IncrementFailuresForMessage(message, ex);
-            }
-
-            OnFailedMessageProcessing(message, ex);
-
-            Logger.Info("Failed to process message", ex);
-        }
-
-        void ProcessMessage(TransportMessage message)
-        {
-            try
-            {
-                OnStartedMessageProcessing(message);
-            }
-            catch (Exception exception)
-            {
-                Logger.Error("Failed raising 'started message processing' event.", exception);
-                if (ShouldExitBecauseOfRetries(message))
-                {
-                    return;
-                }
-                throw;
-            }
-
-            if (string.IsNullOrWhiteSpace(message.Id))
-            {
-                Logger.Error("Message without message id detected");
-
-                FailureManager.SerializationFailedForMessage(message,
-                    new SerializationException("Message without message id received."));
-
-                return;
-            }
-
-
-            if (ShouldExitBecauseOfRetries(message))
-            {
-                try
-                {
-                    OnFinishedMessageProcessing(message);
-                }
-                catch (Exception exception)
-                {
-                    Logger.Error("Failed raising 'finished message processing' event.", exception);
-                }
-                return;
-            }
-
-            try
-            {
-                OnTransportMessageReceived(message);
-            }
-            catch (MessageDeserializationException serializationException)
-            {
-                Logger.Error("Failed to deserialize message with ID: " + message.Id, serializationException);
-
-                message.RevertToOriginalBodyIfNeeded();
-
-                FailureManager.SerializationFailedForMessage(message, serializationException);
-            }
-            catch (Exception)
-            {
-                //but need to abort takes precedence - failures aren't counted here,
-                //so messages aren't moved to the error queue.
-                if (!needToAbort)
-                {
-                    throw;
-                }
-            }
-            finally
-            {
-                try
-                {
-                    OnFinishedMessageProcessing(message);
-                }
-                catch (Exception exception)
-                {
-                    Logger.Error("Failed raising 'finished message processing' event.", exception);
-                    //but need to abort takes precedence - failures aren't counted here,
-                    //so messages aren't moved to the error queue.
-                    if (!needToAbort)
-                    {
-                        throw;
-                    }
-                }
-            }
-        }
-
-        bool ShouldExitBecauseOfRetries(TransportMessage message)
-        {
-            if (TransactionSettings.IsTransactional)
-            {
-                if (firstLevelRetries.HasMaxRetriesForMessageBeenReached(message))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        void InnerStop()
+        /// <summary>
+        /// 
+        /// </summary>
+        protected virtual void InnerStop()
         {
             if (!isStarted)
             {
@@ -383,48 +153,8 @@ namespace NServiceBus.Unicast.Transport
             }
 
             Receiver.Stop();
-            throughputLimiter.Stop();
 
             isStarted = false;
-        }
-
-        void OnStartedMessageProcessing(TransportMessage msg)
-        {
-            if (StartedMessageProcessing != null)
-            {
-                StartedMessageProcessing(this, new StartedMessageProcessingEventArgs(msg));
-            }
-        }
-
-        void OnFinishedMessageProcessing(TransportMessage msg)
-        {
-            if (FinishedMessageProcessing != null)
-            {
-                FinishedMessageProcessing(this, new FinishedMessageProcessingEventArgs(msg));
-            }
-        }
-
-        void OnTransportMessageReceived(TransportMessage msg)
-        {
-            if (TransportMessageReceived != null)
-            {
-                TransportMessageReceived(this, new TransportMessageReceivedEventArgs(msg));
-            }
-        }
-
-        void OnFailedMessageProcessing(TransportMessage message, Exception originalException)
-        {
-            try
-            {
-                if (FailedMessageProcessing != null)
-                {
-                    FailedMessageProcessing(this, new FailedMessageProcessingEventArgs(message, originalException));
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Warn("Failed raising 'failed message processing' event.", e);
-            }
         }
 
         void DisposeManaged()
@@ -437,19 +167,24 @@ namespace NServiceBus.Unicast.Transport
             }
         }
 
-
-        [ThreadStatic]
-        static volatile bool needToAbort;
-
-        static ILog Logger = LogManager.GetLogger<TransportReceiver>();
-        object changeMaximumMessageThroughputPerSecondLock = new object();
+        /// <summary>
+        /// 
+        /// </summary>
+        protected static ILog Logger = LogManager.GetLogger<TransportReceiver>();
         ReceivePerformanceDiagnostics currentReceivePerformanceDiagnostics;
         FirstLevelRetries firstLevelRetries;
-        bool isStarted;
-        Address receiveAddress;
-        ThroughputLimiter throughputLimiter;
+        /// <summary>
+        /// 
+        /// </summary>
+        protected bool isStarted;
+        
+        /// <summary>
+        /// 
+        /// </summary>
+protected Address receiveAddress;
         readonly ReadOnlySettings settings;
         readonly Configure config;
+        readonly PipelineExecutor pipelineExecutor;
 
         /// <summary>
         /// The <see cref="TransactionSettings"/> being used.
@@ -457,5 +192,39 @@ namespace NServiceBus.Unicast.Transport
         public TransactionSettings TransactionSettings { get; private set; }
 
         internal CriticalError CriticalError { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        protected Action<BehaviorContext> MoreContext = context => { };
+
+        void IObserver<MessageDequeued>.OnNext(MessageDequeued value)
+        {
+            //todo: I want to start a new instance of a pipeline and not use thread statics 
+
+            var behaviorContext = pipelineExecutor.CurrentContext;
+            behaviorContext.Set(firstLevelRetries);
+            behaviorContext.Set(currentReceivePerformanceDiagnostics);
+            behaviorContext.Set(TransactionSettings);
+            behaviorContext.Set("TransportReceive.Address", receiveAddress);
+            MoreContext(behaviorContext);
+            
+            try
+            {
+                pipelineExecutor.InvokeReceivePhysicalMessagePipeline();
+            }
+            finally 
+            {
+                pipelineExecutor.CompletePhysicalMessagePipelineContext();
+            }
+        }
+
+        void IObserver<MessageDequeued>.OnError(Exception error)
+        {
+        }
+
+        void IObserver<MessageDequeued>.OnCompleted()
+        {
+        }
     }
 }

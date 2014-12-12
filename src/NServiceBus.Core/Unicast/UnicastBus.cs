@@ -153,10 +153,10 @@ namespace NServiceBus.Unicast
         public ReadOnlySettings Settings { get; set; }
 
         /// <summary>
-        /// Sets an <see cref="ITransport"/> implementation to use as the
+        /// Sets an <see cref="TransportReceiver"/> implementation to use as the
         /// listening endpoint for the bus.
         /// </summary>
-        public ITransport Transport { get; set; }
+        public TransportReceiver Transport { get; set; }
 
         /// <summary>
         /// Critical error handling
@@ -665,10 +665,7 @@ namespace NServiceBus.Unicast
 
                 if (!DoNotStartTransport)
                 {
-                    Transport.StartedMessageProcessing += TransportStartedMessageProcessing;
-                    Transport.TransportMessageReceived += TransportMessageReceived;
-                    Transport.FinishedMessageProcessing += TransportFinishedMessageProcessing;
-                    Transport.Start(InputAddress);
+                   Transport.Start(InputAddress);
                 }
 
                 started = true;
@@ -797,9 +794,6 @@ namespace NServiceBus.Unicast
             if (!DoNotStartTransport)
             {
                 Transport.Stop();
-                Transport.StartedMessageProcessing -= TransportStartedMessageProcessing;
-                Transport.TransportMessageReceived -= TransportMessageReceived;
-                Transport.FinishedMessageProcessing -= TransportFinishedMessageProcessing;
             }
 
             ExecuteIWantToRunAtStartupStopMethods();
@@ -809,26 +803,6 @@ namespace NServiceBus.Unicast
             Log.Info("Shutdown complete.");
 
             started = false;
-        }
-
-        void TransportStartedMessageProcessing(object sender, StartedMessageProcessingEventArgs e)
-        {
-            var incomingMessage = e.Message;
-
-            incomingMessage.Headers[Headers.HostId] = HostInformation.HostId.ToString("N");
-            incomingMessage.Headers[Headers.HostDisplayName] = HostInformation.DisplayName;
-
-            PipelineFactory.PreparePhysicalMessagePipelineContext(incomingMessage);
-
-        }
-        void TransportMessageReceived(object sender, TransportMessageReceivedEventArgs e)
-        {
-            PipelineFactory.InvokeReceivePhysicalMessagePipeline();
-        }
-
-        void TransportFinishedMessageProcessing(object sender, FinishedMessageProcessingEventArgs e)
-        {
-            PipelineFactory.CompletePhysicalMessagePipelineContext();
         }
 
         /// <summary>

@@ -12,10 +12,11 @@
         {
             var incomingTransportMessage = new TransportMessage();
 
-            var context = new IncomingContext(null, incomingTransportMessage)
+            var context = new IncomingContext(null)
             {
                 handleCurrentMessageLaterWasCalled = true
             };
+            context.Set(IncomingContext.IncomingPhysicalMessageKey, incomingTransportMessage);
 
             context.Set(new OutboxMessage("SomeId"));
 

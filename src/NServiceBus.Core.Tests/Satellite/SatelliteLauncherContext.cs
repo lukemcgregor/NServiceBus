@@ -30,7 +30,7 @@
             configurationBuilder.EndpointName("xyz");
             configurationBuilder.AssembliesToScan(new Assembly[0]);
 
-            Transport = new TransportReceiver(new TransactionSettings(true, TimeSpan.FromSeconds(30), IsolationLevel.ReadCommitted, 5, false, false), 1, 0, FakeReceiver, InMemoryFaultManager, new SettingsHolder(), configurationBuilder.BuildConfiguration());
+            Transport = new MainTransportReceiver(new TransactionSettings(true, TimeSpan.FromSeconds(30), IsolationLevel.ReadCommitted, 5, false, false), 1, 0, FakeReceiver, InMemoryFaultManager, new SettingsHolder(), configurationBuilder.BuildConfiguration(), null);
 
             RegisterTypes();
             Builder.Register<IManageMessageFailures>(() => InMemoryFaultManager);

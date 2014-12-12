@@ -85,21 +85,9 @@
             Execute(pipeline, context);
         }
 
-        internal void PreparePhysicalMessagePipelineContext(TransportMessage message)
-        {
-            contextStacker.Push(new IncomingContext(CurrentContext, message));
-        }
-
         internal void InvokeReceivePhysicalMessagePipeline()
         {
-            var context = contextStacker.Current as IncomingContext;
-
-            if (context == null)
-            {
-                throw new InvalidOperationException("Can't invoke the receive pipeline when the current context is: " + contextStacker.Current.GetType().Name);
-            }
-
-            InvokePipeline(incomingBehaviors, context);
+            InvokePipeline(incomingBehaviors, new IncomingContext(CurrentContext));
         }
 
         internal void CompletePhysicalMessagePipelineContext()

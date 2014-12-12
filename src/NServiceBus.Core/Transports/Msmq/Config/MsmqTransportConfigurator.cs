@@ -30,8 +30,8 @@
 
             if (!context.Settings.GetOrDefault<bool>("Endpoint.SendOnly"))
             {
-                context.Container.ConfigureComponent<MsmqDequeueStrategy>(DependencyLifecycle.InstancePerCall)
-                    .ConfigureProperty(p => p.ErrorQueue, ErrorQueueSettings.GetConfiguredErrorQueue(context.Settings));
+                context.Container.ConfigureComponent<MsmqDequeueStrategy>(DependencyLifecycle.InstancePerCall);
+                context.Container.ConfigureComponent(b => new MsmqReceiveWithTransactionScopeBehavior(ErrorQueueSettings.GetConfiguredErrorQueue(context.Settings)), DependencyLifecycle.InstancePerCall);
             }
 
             var cfg = context.Settings.GetConfigSection<MsmqMessageQueueConfig>();

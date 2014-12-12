@@ -9,12 +9,10 @@
     /// </summary>
     public class IncomingContext : BehaviorContext
     {
-        internal IncomingContext(BehaviorContext parentContext, TransportMessage transportMessage)
+        internal IncomingContext(BehaviorContext parentContext)
             : base(parentContext)
         {
             handleCurrentMessageLaterWasCalled = false;
-
-            Set(IncomingPhysicalMessageKey, transportMessage);
 
             LogicalMessages = new List<LogicalMessage>();
         }

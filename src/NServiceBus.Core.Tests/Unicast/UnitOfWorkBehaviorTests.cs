@@ -47,7 +47,7 @@
         {
             var runner = new UnitOfWorkBehavior();
 
-            var context = new IncomingContext(new RootContext(builder), new TransportMessage());
+            var context = new IncomingContext(new RootContext(builder));
 
             runner.Invoke(context, () => { });
 

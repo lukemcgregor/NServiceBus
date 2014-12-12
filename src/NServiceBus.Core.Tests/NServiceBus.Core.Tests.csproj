@@ -154,7 +154,6 @@
     <Compile Include="Encryption\Mailing_list_complex_dto.cs" />
     <Compile Include="Encryption\WireEncryptedStringSpecs.cs" />
     <Compile Include="Fakes\FakeBus.cs" />
-    <Compile Include="Fakes\FakeTransport.cs" />
     <Compile Include="FuncBuilder.cs" />
     <Compile Include="Installers\PerformanceMonitorUsersInstallerTests.cs" />
     <Compile Include="ExceptionTests.cs" />

@@ -24,6 +24,11 @@
             TryProcessMessage = tryProcessMessage;
         }
 
+        public void Init(Address address, TransactionSettings transactionSettings)
+        {
+            throw new NotImplementedException();
+        }
+
         public void Start(int maximumConcurrencyLevel)
         {
             IsStarted = true;
@@ -40,5 +45,9 @@
         public bool IsStarted { get; set; }
 
         public Address InputAddress { get; set; }
+        public IDisposable Subscribe(IObserver<MessageDequeued> observer)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

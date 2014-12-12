@@ -7,7 +7,6 @@
     using NServiceBus.MessageMutator;
     using NServiceBus.Unicast;
     using NServiceBus.Unicast.Messages;
-    using NServiceBus.Unicast.Transport;
     using NUnit.Framework;
 
     public class Message_without_an_id : NServiceBusAcceptanceTest
@@ -44,19 +43,19 @@
             class StartProcessingListener : IWantToRunWhenBusStartsAndStops
             {
                 readonly UnicastBus bus;
-                Context context;
+                //Context context;
 
                 public StartProcessingListener(UnicastBus bus, Context context)
                 {
                     this.bus = bus;
-                    this.context = context;
-                    bus.Transport.StartedMessageProcessing += transport_StartedMessageProcessing;
+                    //.context = context;
+                    //bus.Transport.StartedMessageProcessing += transport_StartedMessageProcessing;
                 }
 
-                void transport_StartedMessageProcessing(object sender, StartedMessageProcessingEventArgs e)
-                {
-                    context.StartMessageProcessingCalled = true;
-                }
+                ////void transport_StartedMessageProcessing(object sender, StartedMessageProcessingEventArgs e)
+                ////{
+                ////    context.StartMessageProcessingCalled = true;
+                ////}
 
                 public void Start()
                 {
@@ -65,7 +64,7 @@
 
                 public void Stop()
                 {
-                    bus.Transport.StartedMessageProcessing -= transport_StartedMessageProcessing;
+                    //bus.Transport.StartedMessageProcessing -= transport_StartedMessageProcessing;
                 }
             }
 

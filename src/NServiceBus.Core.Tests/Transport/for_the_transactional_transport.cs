@@ -15,11 +15,11 @@
         {
             fakeReceiver = new FakeReceiver();
 
-            TransportReceiver = new TransportReceiver(new TransactionSettings(true, TimeSpan.FromSeconds(30), IsolationLevel.ReadCommitted, 5, false,false), 1, 0, fakeReceiver, new FakeFailureManager(), new SettingsHolder(), new BusConfiguration().BuildConfiguration());
+            TransportReceiver = new MainTransportReceiver(new TransactionSettings(true, TimeSpan.FromSeconds(30), IsolationLevel.ReadCommitted, 5, false,false), 1, 0, fakeReceiver, new FakeFailureManager(), new SettingsHolder(), new BusConfiguration().BuildConfiguration(), null);
 
         }
 
         protected FakeReceiver fakeReceiver;
-        protected TransportReceiver TransportReceiver;
+        protected MainTransportReceiver TransportReceiver;
     }
 }

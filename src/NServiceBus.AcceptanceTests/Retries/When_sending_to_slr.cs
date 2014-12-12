@@ -8,7 +8,6 @@
     using MessageMutator;
     using NServiceBus.Config;
     using NServiceBus.Unicast;
-    using NServiceBus.Unicast.Transport;
     using NUnit.Framework;
     using Unicast.Messages;
 
@@ -87,21 +86,21 @@
 
             class FinishedProcessingListener : IWantToRunWhenBusStartsAndStops
             {
-                readonly Context context;
+                //readonly Context context;
 
                 public FinishedProcessingListener(UnicastBus bus, Context context)
                 {
-                    this.context = context;
-                    bus.Transport.FinishedMessageProcessing += Transport_FinishedMessageProcessing;
+                    //this.context = context;
+                    //bus.Transport.FinishedMessageProcessing += Transport_FinishedMessageProcessing;
                 }
 
-                void Transport_FinishedMessageProcessing(object sender, FinishedMessageProcessingEventArgs e)
-                {
-                    if (context.FaultManagerInvoked)
-                    {
-                        context.FinishedMessageProcessingCalledAfterFaultManagerInvoked = true;
-                    }
-                }
+                //void Transport_FinishedMessageProcessing(object sender, FinishedMessageProcessingEventArgs e)
+                //{
+                //    if (context.FaultManagerInvoked)
+                //    {
+                //        context.FinishedMessageProcessingCalledAfterFaultManagerInvoked = true;
+                //    }
+                //}
 
                 public void Start()
                 {

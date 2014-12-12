@@ -42,8 +42,9 @@ namespace NServiceBus.Satellites
 
                     if (satellite.InputAddress != null)
                     {
-                        satelliteContext.Transport = builder.Build<TransportReceiver>();
-
+                        satelliteContext.Transport = builder.Build<SatelliteTransportReceiver>();
+                        satelliteContext.Transport.SetSatellite(satellite);
+                        
                         var advancedSatellite = satellite as IAdvancedSatellite;
                         if (advancedSatellite != null)
                         {
@@ -84,14 +85,6 @@ namespace NServiceBus.Satellites
                 });
         }
 
-        void HandleMessageReceived(object sender, TransportMessageReceivedEventArgs e, ISatellite satellite)
-        {
-            if (!satellite.Handle(e.Message))
-            {
-                ((ITransport) sender).AbortHandlingCurrentMessage();
-            }
-        }
-
         void StartSatellite(SatelliteContext context)
         {
             Logger.DebugFormat("Starting satellite {0} for {1}.", context.Instance.GetType().AssemblyQualifiedName,
@@ -101,7 +94,6 @@ namespace NServiceBus.Satellites
             {
                 if (context.Transport != null)
                 {
-                    context.Transport.TransportMessageReceived += (o, e) => HandleMessageReceived(o, e, context.Instance);
                     context.Transport.Start(context.Instance.InputAddress);
                 }
                 else
