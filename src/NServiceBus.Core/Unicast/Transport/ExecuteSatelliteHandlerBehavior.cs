@@ -11,5 +11,14 @@ namespace NServiceBus.Unicast.Transport
         {
             context.Set("TransportReceiver.MessageHandledSuccessfully", context.Get<ISatellite>().Handle(context.PhysicalMessage));
         }
+
+        public class ExecuteSatelliteHandlerBehaviorRegistration : RegisterStep
+        {
+            public ExecuteSatelliteHandlerBehaviorRegistration()
+                : base("SatelliteHandlerExecutor", typeof(ExecuteSatelliteHandlerBehavior), "Invokes the decryption logic")
+            {
+                InsertBefore("HandlerTransactionScopeWrapperBehavior");
+            }
+        }
     }
 }

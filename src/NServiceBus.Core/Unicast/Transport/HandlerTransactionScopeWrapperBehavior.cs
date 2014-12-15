@@ -7,12 +7,7 @@ namespace NServiceBus.Unicast.Transport
 
     class HandlerTransactionScopeWrapperBehavior : IBehavior<IncomingContext>
     {
-        TransactionSettings TransactionSettings;
-
-        public HandlerTransactionScopeWrapperBehavior(TransactionSettings settings)
-        {
-            TransactionSettings = settings;
-        }
+        public TransactionSettings TransactionSettings { get; set; }
 
         public void Invoke(IncomingContext context, Action next)
         {

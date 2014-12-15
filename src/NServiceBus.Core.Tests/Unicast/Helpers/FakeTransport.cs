@@ -22,6 +22,12 @@ namespace NServiceBus.Unicast.Tests.Helpers
             get { return 1; }
         }
 
+
+        protected override void InvokePipeline(MessageDequeued value)
+        {
+            
+        }
+
         public override void ChangeMaximumConcurrencyLevel(int maximumConcurrencyLevel)
         {
             

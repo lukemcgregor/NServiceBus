@@ -9,13 +9,10 @@ namespace NServiceBus.Transports.Msmq
     using NServiceBus.Pipeline.Contexts;
     using NServiceBus.Unicast.Transport;
 
-    class MsmqReceiveWithTransactionScopeBehavior: IBehavior<IncomingContext>, IDisposable
+    class MsmqReceiveWithTransactionScopeBehavior: IBehavior<IncomingContext>
     {
-        readonly Address errorQueueAddress;
         static ILog Logger = LogManager.GetLogger<MsmqReceiveWithTransactionScopeBehavior>();
 
-        MessageQueue queue;
-        MessageQueue errorQueue;
         TransactionOptions transactionOptions;
         TimeSpan receiveTimeout = TimeSpan.FromSeconds(1);
 
@@ -30,70 +27,71 @@ namespace NServiceBus.Transports.Msmq
             Extension = true,
             AppSpecific = true
         };
-        public MsmqReceiveWithTransactionScopeBehavior(Address errorQueueAddress)
-        {
-            this.errorQueueAddress = errorQueueAddress;
-            errorQueue = new MessageQueue(NServiceBus.MsmqUtilities.GetFullPath(errorQueueAddress), false, true, QueueAccessMode.Send);
-        }
+
+        public Address ErrorQueue { get; set; }
 
         public void Invoke(IncomingContext context, Action next)
         {
             var address = context.Get<Address>("TransportReceive.Address");
-            queue = new MessageQueue(NServiceBus.MsmqUtilities.GetFullPath(address), false, true, QueueAccessMode.Receive)
+            using (var queue = new MessageQueue(NServiceBus.MsmqUtilities.GetFullPath(address), false, true, QueueAccessMode.Receive)
             {
                 MessageReadPropertyFilter = messageReadPropertyFilter
-            };
-
-            var transactionSettings = context.Get<TransactionSettings>();
-            transactionOptions = new TransactionOptions
+            })
             {
-                IsolationLevel = transactionSettings.IsolationLevel,
-                Timeout = transactionSettings.TransactionTimeout
-            };
-
-            using (var scope = new TransactionScope(TransactionScopeOption.Required, transactionOptions))
-            {
-                Message message;
-
-                if (!TryReceiveMessage(() => queue.Receive(receiveTimeout, MessageQueueTransactionType.Automatic), out message))
+                var transactionSettings = context.Get<TransactionSettings>();
+                transactionOptions = new TransactionOptions
                 {
-                    scope.Complete();
-                    return;
-                }
+                    IsolationLevel = transactionSettings.IsolationLevel,
+                    Timeout = transactionSettings.TransactionTimeout
+                };
 
-                TransportMessage transportMessage;
-                try
+                using (var scope = new TransactionScope(TransactionScopeOption.Required, transactionOptions))
                 {
-                    transportMessage = NServiceBus.MsmqUtilities.Convert(message);
-                }
-                catch (Exception ex)
-                {
-                    LogCorruptedMessage(message, ex);
-                    errorQueue.Send(message, MessageQueueTransactionType.Automatic);
-                    scope.Complete();
-                    return;
-                }
+                    Message message;
 
-                context.Set(IncomingContext.IncomingPhysicalMessageKey, transportMessage);
+                    if (!TryReceiveMessage(() => queue.Receive(receiveTimeout, MessageQueueTransactionType.Automatic), out message))
+                    {
+                        scope.Complete();
+                        return;
+                    }
 
-                next();
+                    TransportMessage transportMessage;
+                    try
+                    {
+                        transportMessage = NServiceBus.MsmqUtilities.Convert(message);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogCorruptedMessage(message, ex);
+                        using (var errorQueue = new MessageQueue(NServiceBus.MsmqUtilities.GetFullPath(ErrorQueue), false, true, QueueAccessMode.Send))
+                        {
+                            errorQueue.Send(message, MessageQueueTransactionType.Automatic);
+                        }
+                        scope.Complete();
+                        return;
+                    }
 
-                bool messageHandledSuccessfully;
-                if (!context.TryGet("TransportReceiver.MessageHandledSuccessfully", out messageHandledSuccessfully))
-                {
-                    messageHandledSuccessfully = true;
-                }
+                    context.Set(IncomingContext.IncomingPhysicalMessageKey, transportMessage);
 
-                if (messageHandledSuccessfully)
-                {
-                    scope.Complete();
+                    next();
+
+                    bool messageHandledSuccessfully;
+                    if (!context.TryGet("TransportReceiver.MessageHandledSuccessfully", out messageHandledSuccessfully))
+                    {
+                        messageHandledSuccessfully = true;
+                    }
+
+                    if (messageHandledSuccessfully)
+                    {
+                        scope.Complete();
+                    }
                 }
             }
         }
 
         void LogCorruptedMessage(Message message, Exception ex)
         {
-            var error = string.Format("Message '{0}' is corrupt and will be moved to '{1}'", message.Id, errorQueueAddress.Queue);
+            var error = string.Format("Message '{0}' is corrupt and will be moved to '{1}'", message.Id, ErrorQueue.Queue);
             Logger.Error(error, ex);
         }
 
@@ -129,11 +127,6 @@ namespace NServiceBus.Transports.Msmq
             return false;
         }
 
-        public void Dispose()
-        {
-            //injected
-        }
-
         public class MsmqReceiveWithTransactionScopeBehaviorRegistration : RegisterStep
         {
             public MsmqReceiveWithTransactionScopeBehaviorRegistration()
@@ -141,9 +134,6 @@ namespace NServiceBus.Transports.Msmq
             {
                 InsertBefore("HandlerTransactionScopeWrapperBehavior");
             }
-
         }
     }
-
-    
 }

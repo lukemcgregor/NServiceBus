@@ -1,12 +1,12 @@
 namespace NServiceBus.Unicast.Transport
 {
     using System;
-    using Faults;
-    using Logging;
-    using Monitoring;
+    using NServiceBus.Faults;
+    using NServiceBus.Logging;
     using NServiceBus.Pipeline;
-    using Settings;
-    using Transports;
+    using NServiceBus.Settings;
+    using NServiceBus.Transports;
+    using NServiceBus.Unicast.Transport.Monitoring;
 
     /// <summary>
     ///     Default implementation of a NServiceBus transport.
@@ -14,12 +14,12 @@ namespace NServiceBus.Unicast.Transport
     public abstract class TransportReceiver : IDisposable, IObserver<MessageDequeued>
     {
         /// <summary>
-        /// Creates an instance of <see cref="TransportReceiver"/>
+        ///     Creates an instance of <see cref="TransportReceiver" />
         /// </summary>
-        /// <param name="transactionSettings">The transaction settings to use for this <see cref="TransportReceiver"/>.</param>
+        /// <param name="transactionSettings">The transaction settings to use for this <see cref="TransportReceiver" />.</param>
         /// <param name="maximumConcurrencyLevel">The maximum number of messages to process in parallel.</param>
-        /// <param name="receiver">The <see cref="IDequeueMessages"/> instance to use.</param>
-        /// <param name="manageMessageFailures">The <see cref="IManageMessageFailures"/> instance to use.</param>
+        /// <param name="receiver">The <see cref="IDequeueMessages" /> instance to use.</param>
+        /// <param name="manageMessageFailures">The <see cref="IManageMessageFailures" /> instance to use.</param>
         /// <param name="settings">The current settings</param>
         /// <param name="config">Configure instance</param>
         /// <param name="pipelineExecutor"></param>
@@ -47,7 +47,19 @@ namespace NServiceBus.Unicast.Transport
         public IManageMessageFailures FailureManager { get; set; }
 
         /// <summary>
-        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        ///     Gets the maximum concurrency level this <see cref="TransportReceiver" /> is able to support.
+        /// </summary>
+        public virtual int MaximumConcurrencyLevel { get; private set; }
+
+        /// <summary>
+        ///     The <see cref="TransactionSettings" /> being used.
+        /// </summary>
+        public TransactionSettings TransactionSettings { get; private set; }
+
+        internal CriticalError CriticalError { get; set; }
+
+        /// <summary>
+        ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
         /// <filterpriority>2</filterpriority>
         void IDisposable.Dispose()
@@ -55,10 +67,33 @@ namespace NServiceBus.Unicast.Transport
             //Injected at compile time
         }
 
+        void IObserver<MessageDequeued>.OnNext(MessageDequeued value)
+        {
+            try
+            {
+                InvokePipeline(value);
+
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("boom", ex);
+            }
+            //TODO: I think I need to do some logging here, if a behavior can't be instantiated no error message is shown!
+            //todo: I want to start a new instance of a pipeline and not use thread statics 
+        }
+
         /// <summary>
-        ///     Gets the maximum concurrency level this <see cref="TransportReceiver" /> is able to support.
+        /// 
         /// </summary>
-        public virtual int MaximumConcurrencyLevel { get; private set; }
+        protected abstract void InvokePipeline(MessageDequeued value);
+        
+        void IObserver<MessageDequeued>.OnError(Exception error)
+        {
+        }
+
+        void IObserver<MessageDequeued>.OnCompleted()
+        {
+        }
 
         /// <summary>
         ///     Updates the maximum concurrency level this <see cref="TransportReceiver" /> is able to support.
@@ -82,10 +117,9 @@ namespace NServiceBus.Unicast.Transport
             }
         }
 
-        
 
         /// <summary>
-        /// Starts the transport listening for messages on the given local address.
+        ///     Starts the transport listening for messages on the given local address.
         /// </summary>
         public virtual void Start(Address address)
         {
@@ -102,7 +136,7 @@ namespace NServiceBus.Unicast.Transport
 
             if (workerRunsOnThisEndpoint
                 && (returnAddressForFailures.Queue.ToLower().EndsWith(".worker") || address == config.LocalAddress))
-            //this is a hack until we can refactor the SLR to be a feature. "Worker" is there to catch the local worker in the distributor
+                //this is a hack until we can refactor the SLR to be a feature. "Worker" is there to catch the local worker in the distributor
             {
                 returnAddressForFailures = settings.Get<Address>("MasterNode.Address");
 
@@ -143,7 +177,6 @@ namespace NServiceBus.Unicast.Transport
         }
 
         /// <summary>
-        /// 
         /// </summary>
         protected virtual void InnerStop()
         {
@@ -168,63 +201,33 @@ namespace NServiceBus.Unicast.Transport
         }
 
         /// <summary>
-        /// 
         /// </summary>
         protected static ILog Logger = LogManager.GetLogger<TransportReceiver>();
-        ReceivePerformanceDiagnostics currentReceivePerformanceDiagnostics;
-        FirstLevelRetries firstLevelRetries;
+
+        readonly Configure config;
         /// <summary>
         /// 
+        /// 
         /// </summary>
-        protected bool isStarted;
+        
+        protected PipelineExecutor pipelineExecutor;
+        readonly ReadOnlySettings settings;
+
+        /// <summary>
+        /// </summary>
+        internal ReceivePerformanceDiagnostics currentReceivePerformanceDiagnostics;
         
         /// <summary>
         /// 
         /// </summary>
-protected Address receiveAddress;
-        readonly ReadOnlySettings settings;
-        readonly Configure config;
-        readonly PipelineExecutor pipelineExecutor;
+        internal FirstLevelRetries firstLevelRetries;
 
         /// <summary>
-        /// The <see cref="TransactionSettings"/> being used.
         /// </summary>
-        public TransactionSettings TransactionSettings { get; private set; }
-
-        internal CriticalError CriticalError { get; set; }
+        protected bool isStarted;
 
         /// <summary>
-        /// 
         /// </summary>
-        protected Action<BehaviorContext> MoreContext = context => { };
-
-        void IObserver<MessageDequeued>.OnNext(MessageDequeued value)
-        {
-            //todo: I want to start a new instance of a pipeline and not use thread statics 
-
-            var behaviorContext = pipelineExecutor.CurrentContext;
-            behaviorContext.Set(firstLevelRetries);
-            behaviorContext.Set(currentReceivePerformanceDiagnostics);
-            behaviorContext.Set(TransactionSettings);
-            behaviorContext.Set("TransportReceive.Address", receiveAddress);
-            MoreContext(behaviorContext);
-            
-            try
-            {
-                pipelineExecutor.InvokeReceivePhysicalMessagePipeline();
-            }
-            finally 
-            {
-                pipelineExecutor.CompletePhysicalMessagePipelineContext();
-            }
-        }
-
-        void IObserver<MessageDequeued>.OnError(Exception error)
-        {
-        }
-
-        void IObserver<MessageDequeued>.OnCompleted()
-        {
-        }
+        protected Address receiveAddress;
     }
 }

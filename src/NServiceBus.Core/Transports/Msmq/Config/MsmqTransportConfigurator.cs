@@ -14,7 +14,7 @@
     {
         internal MsmqTransportConfigurator()
         {
-            
+            DependsOn<UnicastBus>();
         }
             
         /// <summary>
@@ -30,8 +30,11 @@
 
             if (!context.Settings.GetOrDefault<bool>("Endpoint.SendOnly"))
             {
+                var configuredErrorQueue = ErrorQueueSettings.GetConfiguredErrorQueue(context.Settings);
+
                 context.Container.ConfigureComponent<MsmqDequeueStrategy>(DependencyLifecycle.InstancePerCall);
-                context.Container.ConfigureComponent(b => new MsmqReceiveWithTransactionScopeBehavior(ErrorQueueSettings.GetConfiguredErrorQueue(context.Settings)), DependencyLifecycle.InstancePerCall);
+
+                context.Container.ConfigureProperty<MsmqReceiveWithTransactionScopeBehavior>(o=>o.ErrorQueue, configuredErrorQueue);
             }
 
             var cfg = context.Settings.GetConfigSection<MsmqMessageQueueConfig>();

@@ -13,14 +13,12 @@ namespace NServiceBus.Unicast.Behaviors
     {
         FirstLevelRetries firstLevelRetries;
         ILog Logger = LogManager.GetLogger<FirstLevelRetriesBehavior>();
-        TransactionSettings TransactionSettings;
-        readonly HostInformation hostInformation;
+        public TransactionSettings TransactionSettings { get; set; }
+        public HostInformation HostInformation { get; set; }
         readonly IManageMessageFailures FailureManager;
 
-        public FirstLevelRetriesBehavior(TransactionSettings settings, HostInformation hostInformation, IManageMessageFailures manageMessageFailures)
+        public FirstLevelRetriesBehavior(IManageMessageFailures manageMessageFailures)
         {
-            TransactionSettings = settings;
-            this.hostInformation = hostInformation;
             FailureManager = manageMessageFailures;
         }
 
@@ -44,8 +42,8 @@ namespace NServiceBus.Unicast.Behaviors
 
         void ProcessMessage(TransportMessage message, Action next)
         {
-            message.Headers[Headers.HostId] = hostInformation.HostId.ToString("N");
-            message.Headers[Headers.HostDisplayName] = hostInformation.DisplayName;
+            message.Headers[Headers.HostId] = HostInformation.HostId.ToString("N");
+            message.Headers[Headers.HostDisplayName] = HostInformation.DisplayName;
 
             if (string.IsNullOrWhiteSpace(message.Id))
             {

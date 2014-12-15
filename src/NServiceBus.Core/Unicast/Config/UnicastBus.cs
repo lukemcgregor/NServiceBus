@@ -11,6 +11,7 @@ namespace NServiceBus.Features
     using NServiceBus.Hosting;
     using NServiceBus.Support;
     using NServiceBus.Unicast;
+    using NServiceBus.Unicast.Behaviors;
     using Pipeline;
     using Pipeline.Contexts;
     using Transports;
@@ -38,7 +39,6 @@ namespace NServiceBus.Features
                 });
             });
         }
-
       
         protected internal override void Setup(FeatureConfigurationContext context)
         {
@@ -54,6 +54,7 @@ namespace NServiceBus.Features
             ConfigureSubscriptionAuthorization(context);
 
             context.Container.ConfigureComponent<PipelineExecutor>(DependencyLifecycle.SingleInstance);
+            
             ConfigureBehaviors(context);
 
             var knownMessages = context.Settings.GetAvailableTypes()
@@ -69,7 +70,7 @@ namespace NServiceBus.Features
                 return;
             }
 
-            SetTransportThresholds(context);
+            SetTransportThresholds(context, hostInfo);
         }
 
         static Guid GenerateDefaultHostId(out string fullPathToStartingExe)
@@ -81,7 +82,7 @@ namespace NServiceBus.Features
             return gen.HostId;
         }
 
-        void SetTransportThresholds(FeatureConfigurationContext context)
+        void SetTransportThresholds(FeatureConfigurationContext context, HostInformation hostInfo)
         {
             var transportConfig = context.Settings.GetConfigSection<TransportConfig>();
             var maximumThroughput = 0;
@@ -100,13 +101,17 @@ namespace NServiceBus.Features
                 MaxRetries = maximumNumberOfRetries
             };
 
+            context.Container.ConfigureProperty<HandlerTransactionScopeWrapperBehavior>(b => b.TransactionSettings, transactionSettings);
+            context.Container.ConfigureProperty<FirstLevelRetriesBehavior>(b => b.TransactionSettings, transactionSettings)
+                .ConfigureProperty<FirstLevelRetriesBehavior>(p=>p.HostInformation, hostInfo);
+           
             context.Container.ConfigureComponent(b => new MainTransportReceiver(transactionSettings, maximumConcurrencyLevel, maximumThroughput, b.Build<IDequeueMessages>(), b.Build<IManageMessageFailures>(), context.Settings, b.Build<Configure>(), b.Build<PipelineExecutor>())
             {
                 CriticalError = b.Build<CriticalError>(),
                 Notifications = b.Build<BusNotifications>()
             }, DependencyLifecycle.InstancePerCall);
 
-            context.Container.ConfigureComponent(b => new SatelliteTransportReceiver(transactionSettings, maximumConcurrencyLevel, b.Build<IDequeueMessages>(), b.Build<IManageMessageFailures>(), context.Settings, b.Build<Configure>(), b.Build<PipelineExecutor>())
+            context.Container.ConfigureComponent(b => new SatelliteTransportReceiver(b, transactionSettings, maximumConcurrencyLevel, b.Build<IDequeueMessages>(), b.Build<IManageMessageFailures>(), context.Settings, b.Build<Configure>(), b.Build<PipelineExecutor>())
             {
                 CriticalError = b.Build<CriticalError>(),
                 Notifications = b.Build<BusNotifications>()

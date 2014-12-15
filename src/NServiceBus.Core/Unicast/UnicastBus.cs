@@ -156,7 +156,7 @@ namespace NServiceBus.Unicast
         /// Sets an <see cref="TransportReceiver"/> implementation to use as the
         /// listening endpoint for the bus.
         /// </summary>
-        public TransportReceiver Transport { get; set; }
+        public MainTransportReceiver Transport { get; set; }
 
         /// <summary>
         /// Critical error handling

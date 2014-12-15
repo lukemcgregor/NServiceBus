@@ -140,20 +140,23 @@ namespace NServiceBus.Transports.Msmq
 
         void OnPeekCompleted(object sender, PeekCompletedEventArgs peekCompletedEventArgs)
         {
-            stopResetEvent.Reset();
+            try
+            {
+                stopResetEvent.Reset();
 
-            CallPeekWithExceptionHandling(() => queue.EndPeek(peekCompletedEventArgs.AsyncResult));
+                CallPeekWithExceptionHandling(() => queue.EndPeek(peekCompletedEventArgs.AsyncResult));
 
-            throttlingSemaphore.Wait();
+                throttlingSemaphore.Wait();
 
-            observable.OnNext(new MessageDequeued());
+                observable.OnNext(new MessageDequeued());
 
-            //We using an AutoResetEvent here to make sure we do not call another BeginPeek before the Receive has been called
-            peekResetEvent.WaitOne();
-
-            CallPeekWithExceptionHandling(() => queue.BeginPeek());
-
-            stopResetEvent.Set();
+                CallPeekWithExceptionHandling(() => queue.BeginPeek());
+            }
+            finally
+            {
+                throttlingSemaphore.Release();
+                stopResetEvent.Set();
+            }
         }
 
         void CallPeekWithExceptionHandling(Action action)
@@ -197,7 +200,6 @@ namespace NServiceBus.Transports.Msmq
         [SkipWeaving]
         CircuitBreaker circuitBreaker = new CircuitBreaker(100, TimeSpan.FromSeconds(30));
         int maximumConcurrencyLevel;
-        AutoResetEvent peekResetEvent = new AutoResetEvent(false);
         MessageQueue queue;
         ManualResetEvent stopResetEvent = new ManualResetEvent(true);
         SemaphoreSlim throttlingSemaphore;

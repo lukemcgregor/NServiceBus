@@ -21,11 +21,16 @@
         /// <param name="builder">The builder.</param>
         /// <param name="busNotifications">Bus notifications.</param>
         public PipelineExecutor(ReadOnlySettings settings, IBuilder builder, BusNotifications busNotifications)
+            : this(builder, busNotifications, settings.Get<PipelineModifications>())
+        {
+        }
+
+        internal PipelineExecutor(IBuilder builder, BusNotifications busNotifications, PipelineModifications pipelineModifications)
         {
             rootBuilder = builder;
             this.busNotifications = busNotifications;
 
-            var pipelineBuilder = new PipelineBuilder(settings.Get<PipelineModifications>());
+            var pipelineBuilder = new PipelineBuilder(pipelineModifications);
             Incoming = pipelineBuilder.Incoming.AsReadOnly();
             Outgoing = pipelineBuilder.Outgoing.AsReadOnly();
 
@@ -85,14 +90,9 @@
             Execute(pipeline, context);
         }
 
-        internal void InvokeReceivePhysicalMessagePipeline()
+        internal void InvokeReceivePhysicalMessagePipeline(IncomingContext context)
         {
-            InvokePipeline(incomingBehaviors, new IncomingContext(CurrentContext));
-        }
-
-        internal void CompletePhysicalMessagePipelineContext()
-        {
-            contextStacker.Pop();
+            InvokePipeline(incomingBehaviors, context);
         }
 
         internal OutgoingContext InvokeSendPipeline(DeliveryOptions deliveryOptions, LogicalMessage message)
